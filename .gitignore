@@ -127,3 +127,6 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# docs not needed to be uploaded
+week1/slides_week1.pdf

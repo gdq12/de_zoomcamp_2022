@@ -137,5 +137,40 @@ while True:
   # push data to postgres
   df.to_sql(name = 'yellow_taxi_data', con = engine, if_exists = 'append')
   t2 = time()
-  print(f"push {df.shape[0]} records int yellow_taxi_data postgres table in {t2 - t1} seconds")
+  print(f"push {df.shape[0]} records int yellow_taxi_data postgres table in {round(t2 - t1, 2)} seconds")
 ```
+
+## pdAdmin Docker
+
+* pull image and create container
+
+```
+docker run -it -e POSTGRES_USER=root -e POSTGRES_PASSWORD=root -e POSTGRES_DB=ny_taxi -p 8080:80 dpage/pdadmin4
+
+# then go to following link in browser
+localhost:8080
+
+# once enter pgAdmin must create a server and enter the same credentials used to create the container
+```
+
+* connex container to postgres by creating a network
+
+```
+# define the network
+docker network create pg-network
+
+# link the containers back to the network (postgres db container)
+docker run -it -p 5432:5432 -e POSTGRES_USER=root -e POSTGRES_PASSWORD=root -e POSTGRES_DB=ny_taxi -v $(pwd)/data_folder:/var/lib/postgresql/data --network=pg-network --name pg-databse postgres:13
+
+# link pgAdmin container to network
+docker run -it -e POSTGRES_USER=root -e POSTGRES_PASSWORD=root -e POSTGRES_DB=ny_taxi -p 8080:80 --network=pg-network --name pdadmin dpage/pdadmin4
+
+
+# then go to following link in browser
+localhost:8080
+
+# once enter pgAdmin must create a server and enter the same credentials used to create the container
+# hostname will be the name variable assigned to the postgres docker
+```
+
+#3 Docker Compose
