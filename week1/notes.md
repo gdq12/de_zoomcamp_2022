@@ -126,6 +126,9 @@ engine.connect()
 # generate string variable for create table command (in DDL language)
 create_query = pd.io.sql.get_schema(df, 'yellow_taxi_data', con = engine)
 
+# or use first row of dataset to create the table
+df.iloc[0].to_sql(name = 'yellow_taxi_data', con = engine, if_exists = 'replace')
+
 # push data to database
 while True:
   t1 = time()
@@ -173,4 +176,130 @@ localhost:8080
 # hostname will be the name variable assigned to the postgres docker
 ```
 
-#3 Docker Compose
+## Jupyter to script
+
+* to convert jupyter notebook to a script
+
+```
+# in terminal
+jupyter nbconvert --to-script fileName.ipynb
+```
+
+* python script to injest taxi data into postgresql
+
+```
+# necessary libraries
+import os
+import argparse
+import pandas as pd
+from sqlalchemy import create_engine
+from time import time
+
+def main(params):
+
+  # parameters needed to connect to postgresql
+  user = params.user
+  password = params.password
+  host = params.host
+  port = params.port
+  db = params.db
+  table_name = params.table_name
+  url = params.url
+
+  # download csv
+  csv_name = 'output.csv'
+  os.system(f"wget {url} -O {csv_name}")
+
+  # load data into python environment
+  df_iter = pd.read_csv(csv_name, iterator = True, chunksize = 10.000)
+
+  # to fetch only 1 chunk of df into python
+  df = df_iter.next()
+
+  # connect to db
+  engine = creat_engine(f'postgresql://{user}:{password}@{host}:{port}/{table_name}')
+  engine.connect()
+
+  # first row of dataset to create the table
+  df.iloc[0].to_sql(name = table_name, con = engine, if_exists = 'replace')
+
+  # push data to database
+  while True:
+    t1 = time()
+    # fetch chunk from df iterator
+    df = df_iter.next()
+    # convert columns to necessary data types
+    df['tpep_pickup_datetime'] = pd.to_datetime(df['tpep_pickup_datetime'])
+    df['tpep_dropoff_datetime'] = pd.to_datetime(df['tpep_dropoff_datetime'])
+    # push data to postgres
+    df.to_sql(name = table_name, con = engine, if_exists = 'append')
+    t2 = time()
+    print(f"push {df.shape[0]} records int yellow_taxi_data postgres table in {round(t2 - t1, 2)} seconds")
+
+if __name__ == '__main__':
+
+  # to provide parameters needed to download data and connect to postgresql
+  parser = argparse.ArgumentParser(description = 'Provide connex variables to postgresql for csv injestion')
+  parser.add_argument('--user', help = 'user name for postgresql')
+  parser.add_argument('--password', help = 'password for postgresql')
+  parser.add_argument('--host', help = 'host name for postgresql')
+  parser.add_argument('--port', help = 'port number for postgresql')
+  parser.add_argument('--db', help = 'postgresql dbname')
+  parser.add_argument('--table_name', help = 'table name for postgresql')
+  parser.add_argument('--url', help = 'url to fetch taxi data')
+
+  args = parser.parse_args()
+
+  # download data and chunk push data to postgresql
+  main(args)
+```
+
+* to test the python script above
+
+```
+URL='https://s3.amazonaws.com/nyc-tlc/trip+data/yellow_tripdata_2021-01.csv'
+
+python scriptName.py --user=root --password=root --host=localhost --port=5432 --db=ny_taxi --table_name=yellow_taxi_data --url=${URL}
+```
+
+* dockerize script
+
+```
+FROM python:3.9.1
+
+RUN apt-get install wget
+RUN pip install pandas sqlalchemy psychopg2
+
+WORKDIR /append
+COPY localScript.py DockerScript.py
+
+ENTRYPOINT["python", "DockerScript.py"]
+```
+
+* dockerization in action (run in network to work with pgAdmin)
+
+```
+# build the image from the docker compose file
+docker build -t taxi_ingest:v1 .
+
+# build the container from the image
+docker run --network=pg-network -it taxi_injest:v1 --user=root --password=root --host=pg-database --port=5432 --db=ny_taxi --table_name=yellow_taxi_data --url=${URL}
+
+# network and environment variables should be isolated in the docker run command with the image name
+```
+
+* good to know
+
+```
+# create an http server via python to fetch data (in command line)
+python -m http.server
+
+# access http server (in browser)
+localhost:8000
+
+# to get your localhost ip address via terminal
+## mac
+ifconfig
+## windows
+ipconfig
+```
