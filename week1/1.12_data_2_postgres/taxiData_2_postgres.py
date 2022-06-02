@@ -8,7 +8,7 @@ url = 'https://s3.amazonaws.com/nyc-tlc/trip+data/yellow_tripdata_2021-01.parque
 df = pd.read_parquet(url, engine = "fastparquet")
 
 # connecting to postgres
-user = 'root'
+user = 'postgres'
 pwd = 'root'
 db_name = 'ny_taxi'
 port = 5432
@@ -24,7 +24,7 @@ df.head(n = 0).to_sql(name = 'yellow_taxi_data', con = conn, if_exists = 'replac
 
 # push the rest of data into table
 print(f"populating yellow_tax_table on {datetime.now().strftime('%B %d, %Y %H:%M:%S')}")
-df.to_sql(name = 'yellows_taxi_data', con = conn, if_exists = 'append', index = False)
+df.to_sql(name = 'yellow_taxi_data', con = conn, if_exists = 'append', index = False)
 
 # close connex
 print(f"data push complete and closing connection to postgres container on {datetime.now().strftime('%B %d, %Y %H:%M:%S')}")
